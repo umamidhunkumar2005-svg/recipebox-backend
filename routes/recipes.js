@@ -19,22 +19,25 @@ const authenticate = (req, res, next) => {
   }
 };
 
-// --- 1. GET ALL RECIPES ---
-router.get('/', async (req, res) => {
+// --- 1. GET ALL RECIPES (STRICTLY PRIVATE) ---
+// Added 'authenticate' and locked the database search to the user's ID
+router.get('/', authenticate, async (req, res) => {
   try {
-    const recipes = await Recipe.find().populate('author', 'username');
+    // Only find recipes where the author matches the logged-in user
+    const recipes = await Recipe.find({ author: req.user.id }).populate('author', 'username');
     res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching recipes' });
   }
 });
 
-// --- 2. ADVANCED SEARCH & FACETED FILTERING (Phase 2) ---
-// CRITICAL: This MUST be placed ABOVE any routes with /:id parameters!
-router.get('/search', async (req, res) => {
+// --- 2. ADVANCED SEARCH & FACETED FILTERING (STRICTLY PRIVATE) ---
+router.get('/search', authenticate, async (req, res) => {
   try {
     const { query, tag } = req.query;
-    let filter = {};
+    
+    // Start the filter by locking it to the active user immediately
+    let filter = { author: req.user.id };
 
     if (query) {
       filter.title = { $regex: query, $options: 'i' };
@@ -52,7 +55,7 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// --- 3. CREATE A RECIPE (CLEAN ALIGNED PRODUCTION VERSION) ---
+// --- 3. CREATE A RECIPE ---
 router.post('/create', authenticate, async (req, res) => {
   try {
     const { title, description, prepTimeMinutes, imageUrl, ingredients, instructions, tags } = req.body;
@@ -77,13 +80,18 @@ router.post('/create', authenticate, async (req, res) => {
   }
 });
 
-// --- 4. DELETE A RECIPE (GOD MODE) ---
-// Notice there is NO 'authenticate' word here at all!
-router.delete('/:id', async (req, res) => {
+// --- 4. DELETE A RECIPE (GOD MODE REVOKED) ---
+// Added 'authenticate' and a strict ownership check
+router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const deletedRecipe = await Recipe.findByIdAndDelete(req.params.id);
+    // findOneAndDelete ensures we only delete if BOTH the ID matches AND the author matches the logged-in user
+    const deletedRecipe = await Recipe.findOneAndDelete({ 
+        _id: req.params.id, 
+        author: req.user.id 
+    });
+
     if (!deletedRecipe) {
-      return res.status(404).json({ message: 'Recipe not found' });
+      return res.status(404).json({ message: 'Recipe not found or you do not have permission to delete it.' });
     }
     res.json({ message: 'Recipe deleted successfully' });
   } catch (error) {
@@ -110,7 +118,7 @@ router.put('/:id', authenticate, async (req, res) => {
   }
 });
 
-// --- 6. ADD A REVIEW & STAR RATING (Phase 3) ---
+// --- 6. ADD A REVIEW ---
 router.post('/:id/reviews', authenticate, async (req, res) => {
   try {
     const { rating, comment } = req.body;
@@ -121,11 +129,10 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
       comment
     };
 
-    // Use findByIdAndUpdate to push the review instantly WITHOUT validating old recipe data
     const updatedRecipe = await Recipe.findByIdAndUpdate(
       req.params.id,
       { $push: { reviews: newReview } },
-      { new: true } // Returns the newly updated document
+      { new: true } 
     );
 
     if (!updatedRecipe) {

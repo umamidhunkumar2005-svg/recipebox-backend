@@ -13,14 +13,16 @@ app.use(cors());
 
 // Import Routes
 const authRoutes = require('./routes/auth');
-const recipeRoutes = require('./routes/recipes'); // Added Recipe Routes
+const recipeRoutes = require('./routes/recipes'); 
+const userRoutes = require('./routes/userRoutes'); // 🌟 NEW: Added User/Social Routes
 
 // Use Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/recipes', recipeRoutes); // Added Recipe Route usage
+app.use('/api/recipes', recipeRoutes); 
+app.use('/api/users', userRoutes); // 🌟 NEW: Activated User/Social Routes
 
 // Connect to Database
-console.log("🔗 Connecting to database:", process.env.MONGO_URI); // This will prove it's reading the cloud link!
+console.log("🔗 Connecting to database:", process.env.MONGO_URI); 
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB officially connected!'))

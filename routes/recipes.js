@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Recipe = require('../models/Recipe');
+const User = require('../models/User'); // 🌟 NEW: Needed to check who the user follows!
 const jwt = require('jsonwebtoken');
 
 console.log("👉 Recipe routes file has successfully loaded!");
@@ -19,11 +20,9 @@ const authenticate = (req, res, next) => {
   }
 };
 
-// --- 1. GET ALL RECIPES (STRICTLY PRIVATE) ---
-// Added 'authenticate' and locked the database search to the user's ID
+// --- 1. GET ALL RECIPES (YOUR PRIVATE VAULT) ---
 router.get('/', authenticate, async (req, res) => {
   try {
-    // Only find recipes where the author matches the logged-in user
     const recipes = await Recipe.find({ author: req.user.id }).populate('author', 'username');
     res.json(recipes);
   } catch (error) {
@@ -31,13 +30,33 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// --- 2. ADVANCED SEARCH & FACETED FILTERING (STRICTLY PRIVATE) ---
+// --- 🌟 NEW: 1.5 GET SOCIAL FEED (RECIPES FROM FOLLOWED CHEFS) ---
+router.get('/feed', authenticate, async (req, res) => {
+  try {
+    // 1. Find the logged-in user in the database to get their 'following' list
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) return res.status(404).json({ message: 'User not found' });
+
+    // 2. The Algorithm: Find recipes where the author's ID is inside your following array!
+    const feedRecipes = await Recipe.find({
+      author: { $in: currentUser.following }
+    })
+    .populate('author', 'username profilePicture') // Pull in the author's details
+    .sort({ createdAt: -1 }); // Sort by newest posts first
+
+    res.json(feedRecipes);
+  } catch (error) {
+    console.error("🔥 Feed Error:", error);
+    res.status(500).json({ message: 'Error fetching the social feed' });
+  }
+});
+
+// --- 2. ADVANCED SEARCH & FACETED FILTERING ---
 router.get('/search', authenticate, async (req, res) => {
   try {
     const { query, tag } = req.query;
     
-    // Start the filter by locking it to the active user immediately
-    let filter = { author: req.user.id };
+    let filter = { author: req.user.id }; // Currently restricted to private search
 
     if (query) {
       filter.title = { $regex: query, $options: 'i' };
@@ -80,11 +99,9 @@ router.post('/create', authenticate, async (req, res) => {
   }
 });
 
-// --- 4. DELETE A RECIPE (GOD MODE REVOKED) ---
-// Added 'authenticate' and a strict ownership check
+// --- 4. DELETE A RECIPE ---
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    // findOneAndDelete ensures we only delete if BOTH the ID matches AND the author matches the logged-in user
     const deletedRecipe = await Recipe.findOneAndDelete({ 
         _id: req.params.id, 
         author: req.user.id 

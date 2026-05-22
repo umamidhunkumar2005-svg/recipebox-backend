@@ -4,6 +4,9 @@ const Recipe = require('../models/Recipe');
 const User = require('../models/User'); 
 const jwt = require('jsonwebtoken');
 
+// 🌟 NEW: Import the XP Calculator
+const { addXP } = require('../utils/xpCalculator');
+
 console.log("👉 Recipe routes file has successfully loaded!");
 
 const authenticate = (req, res, next) => {
@@ -110,6 +113,10 @@ router.post('/create', authenticate, async (req, res) => {
     });
 
     const savedRecipe = await newRecipe.save();
+    
+    // 🌟 NEW: Award 20 XP for creating a new recipe!
+    await addXP(req.user.id, 20);
+
     return res.status(201).json(savedRecipe);
 
   } catch (err) {
@@ -171,6 +178,9 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
     if (!updatedRecipe) {
       return res.status(404).json({ message: 'Recipe not found' });
     }
+
+    // 🌟 NEW: Award 10 XP for leaving a review!
+    await addXP(req.user.id, 10);
 
     res.status(201).json(updatedRecipe);
   } catch (error) {

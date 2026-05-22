@@ -8,7 +8,8 @@ const app = express();
 const PORT = 5000;
 
 // Middleware: Allows your server to read JSON data
-app.use(express.json());
+// Add the { limit: '10mb' } option to your json middleware
+app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
 // Import Routes

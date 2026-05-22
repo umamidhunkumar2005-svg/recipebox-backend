@@ -17,6 +17,25 @@ const authenticate = (req, res, next) => {
   }
 };
 
+// --- 🌟 NEW: UPDATE LOGGED-IN USER PROFILE ---
+router.put('/update-profile', authenticate, async (req, res) => {
+  try {
+    const { bio, profilePicture } = req.body;
+    
+    // Find the logged-in user and update only these two fields
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: { bio, profilePicture } },
+      { new: true } // Return the updated document
+    ).select('-password'); // Never send passwords back!
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error("Profile Update Error:", error);
+    res.status(500).json({ message: "Server error updating profile." });
+  }
+});
+
 // --- GET CHEFS YOU FOLLOW ---
 router.get('/following', authenticate, async (req, res) => {
   try {
@@ -29,10 +48,9 @@ router.get('/following', authenticate, async (req, res) => {
   }
 });
 
-// --- 🌟 NEW: GET SPECIFIC CHEF PROFILE ---
+// --- GET SPECIFIC CHEF PROFILE ---
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    // Select '-password' ensures we never accidentally send the password hash to the frontend!
     const chef = await User.findById(req.params.id).select('-password');
     if (!chef) return res.status(404).json({ message: 'Chef not found' });
     res.json(chef);

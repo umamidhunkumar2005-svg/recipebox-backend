@@ -51,6 +51,23 @@ router.get('/feed', authenticate, async (req, res) => {
   }
 });
 
+// --- 🌟 NEW: 1.8 GET EXPLORE FEED (ALL OTHER CHEFS) ---
+router.get('/explore', authenticate, async (req, res) => {
+  try {
+    // Find ALL recipes where the author is NOT ($ne) the currently logged-in user
+    const exploreRecipes = await Recipe.find({ 
+      author: { $ne: req.user.id } 
+    })
+    .populate('author', 'username profilePicture')
+    .sort({ createdAt: -1 }); // Newest first
+
+    res.json(exploreRecipes);
+  } catch (error) {
+    console.error("🔥 Explore Error:", error);
+    res.status(500).json({ message: 'Error fetching the explore feed' });
+  }
+});
+
 // --- 2. ADVANCED SEARCH & FACETED FILTERING ---
 router.get('/search', authenticate, async (req, res) => {
   try {

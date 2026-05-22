@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const Recipe = require('../models/Recipe');
-const User = require('../models/User'); // 🌟 NEW: Needed to check who the user follows!
+const User = require('../models/User'); 
 const jwt = require('jsonwebtoken');
 
 console.log("👉 Recipe routes file has successfully loaded!");
 
-// --- SECURITY GUARD MIDDLEWARE ---
 const authenticate = (req, res, next) => {
   const token = req.header('Authorization');
   if (!token) return res.status(401).json({ message: 'No token' });
@@ -20,7 +19,6 @@ const authenticate = (req, res, next) => {
   }
 };
 
-// --- 1. GET ALL RECIPES (YOUR PRIVATE VAULT) ---
 router.get('/', authenticate, async (req, res) => {
   try {
     const recipes = await Recipe.find({ author: req.user.id }).populate('author', 'username');
@@ -30,19 +28,16 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// --- 🌟 NEW: 1.5 GET SOCIAL FEED (RECIPES FROM FOLLOWED CHEFS) ---
 router.get('/feed', authenticate, async (req, res) => {
   try {
-    // 1. Find the logged-in user in the database to get their 'following' list
     const currentUser = await User.findById(req.user.id);
     if (!currentUser) return res.status(404).json({ message: 'User not found' });
 
-    // 2. The Algorithm: Find recipes where the author's ID is inside your following array!
     const feedRecipes = await Recipe.find({
       author: { $in: currentUser.following }
     })
-    .populate('author', 'username profilePicture') // Pull in the author's details
-    .sort({ createdAt: -1 }); // Sort by newest posts first
+    .populate('author', 'username profilePicture') 
+    .sort({ createdAt: -1 }); 
 
     res.json(feedRecipes);
   } catch (error) {
@@ -51,15 +46,13 @@ router.get('/feed', authenticate, async (req, res) => {
   }
 });
 
-// --- 🌟 NEW: 1.8 GET EXPLORE FEED (ALL OTHER CHEFS) ---
 router.get('/explore', authenticate, async (req, res) => {
   try {
-    // Find ALL recipes where the author is NOT ($ne) the currently logged-in user
     const exploreRecipes = await Recipe.find({ 
       author: { $ne: req.user.id } 
     })
     .populate('author', 'username profilePicture')
-    .sort({ createdAt: -1 }); // Newest first
+    .sort({ createdAt: -1 }); 
 
     res.json(exploreRecipes);
   } catch (error) {
@@ -68,17 +61,27 @@ router.get('/explore', authenticate, async (req, res) => {
   }
 });
 
-// --- 2. ADVANCED SEARCH & FACETED FILTERING ---
+// --- 🌟 NEW: GET A SPECIFIC CHEF'S RECIPES ---
+router.get('/chef/:id', authenticate, async (req, res) => {
+  try {
+    const recipes = await Recipe.find({ author: req.params.id })
+      .populate('author', 'username profilePicture bio')
+      .sort({ createdAt: -1 });
+    res.json(recipes);
+  } catch (error) {
+    console.error("Chef Recipes Error:", error);
+    res.status(500).json({ message: 'Error fetching chef recipes' });
+  }
+});
+
 router.get('/search', authenticate, async (req, res) => {
   try {
     const { query, tag } = req.query;
-    
-    let filter = { author: req.user.id }; // Currently restricted to private search
+    let filter = { author: req.user.id }; 
 
     if (query) {
       filter.title = { $regex: query, $options: 'i' };
     }
-
     if (tag) {
       filter.tags = { $regex: tag, $options: 'i' };
     }
@@ -91,7 +94,6 @@ router.get('/search', authenticate, async (req, res) => {
   }
 });
 
-// --- 3. CREATE A RECIPE ---
 router.post('/create', authenticate, async (req, res) => {
   try {
     const { title, description, prepTimeMinutes, imageUrl, ingredients, instructions, tags } = req.body;
@@ -116,7 +118,6 @@ router.post('/create', authenticate, async (req, res) => {
   }
 });
 
-// --- 4. DELETE A RECIPE ---
 router.delete('/:id', authenticate, async (req, res) => {
   try {
     const deletedRecipe = await Recipe.findOneAndDelete({ 
@@ -134,7 +135,6 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
-// --- 5. UPDATE A RECIPE ---
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const recipe = await Recipe.findById(req.params.id);
@@ -152,7 +152,6 @@ router.put('/:id', authenticate, async (req, res) => {
   }
 });
 
-// --- 6. ADD A REVIEW ---
 router.post('/:id/reviews', authenticate, async (req, res) => {
   try {
     const { rating, comment } = req.body;

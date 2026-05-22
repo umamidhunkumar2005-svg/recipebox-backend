@@ -17,15 +17,11 @@ const authenticate = (req, res, next) => {
   }
 };
 
-// --- 🌟 NEW: GET CHEFS YOU FOLLOW ---
+// --- GET CHEFS YOU FOLLOW ---
 router.get('/following', authenticate, async (req, res) => {
   try {
-    // Find the logged in user, and 'populate' their following array with the actual profile data!
     const currentUser = await User.findById(req.user.id).populate('following', 'username profilePicture bio');
-    
     if (!currentUser) return res.status(404).json({ message: 'User not found' });
-    
-    // Send the array of chef profiles back to the frontend
     res.json(currentUser.following);
   } catch (error) {
     console.error("Fetch Following Error:", error);
@@ -33,8 +29,20 @@ router.get('/following', authenticate, async (req, res) => {
   }
 });
 
-// @route   POST /api/users/:id/follow
-// @desc    Follow or Unfollow a user (Toggle)
+// --- 🌟 NEW: GET SPECIFIC CHEF PROFILE ---
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    // Select '-password' ensures we never accidentally send the password hash to the frontend!
+    const chef = await User.findById(req.params.id).select('-password');
+    if (!chef) return res.status(404).json({ message: 'Chef not found' });
+    res.json(chef);
+  } catch (error) {
+    console.error("Profile Fetch Error:", error);
+    res.status(500).json({ message: "Server error fetching profile." });
+  }
+});
+
+// --- FOLLOW / UNFOLLOW TOGGLE ---
 router.post('/:id/follow', authenticate, async (req, res) => {
   try {
     const loggedInUserId = req.user.id; 
@@ -52,13 +60,11 @@ router.post('/:id/follow', authenticate, async (req, res) => {
     const isFollowing = loggedInUser.following.includes(targetUserId);
 
     if (isFollowing) {
-      // UNFOLLOW LOGIC
       loggedInUser.following = loggedInUser.following.filter(id => id.toString() !== targetUserId);
       targetUser.followers = targetUser.followers.filter(id => id.toString() !== loggedInUserId);
       await Promise.all([loggedInUser.save(), targetUser.save()]); 
       return res.status(200).json({ message: `You unfollowed @${targetUser.username}` });
     } else {
-      // FOLLOW LOGIC
       loggedInUser.following.push(targetUserId);
       targetUser.followers.push(loggedInUserId);
       await Promise.all([loggedInUser.save(), targetUser.save()]);
